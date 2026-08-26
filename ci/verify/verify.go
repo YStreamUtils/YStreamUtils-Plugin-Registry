@@ -7,9 +7,9 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
-	"ystreamutils-plugin-registry/types"
 
 	"github.com/BurntSushi/toml"
+	"github.com/YStreamUtils/YStreamUtils-Plugin-Registry/ci/types"
 	"github.com/google/go-github/v90/github"
 	"golang.org/x/sync/errgroup"
 )

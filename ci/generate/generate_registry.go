@@ -5,9 +5,9 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"ystreamutils-plugin-registry/types"
 
 	"github.com/BurntSushi/toml"
+	"github.com/YStreamUtils/YStreamUtils-Plugin-Registry/ci/types"
 )
 
 func main() {

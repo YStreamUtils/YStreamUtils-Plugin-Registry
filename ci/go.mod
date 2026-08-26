@@ -1,4 +1,4 @@
-module ystreamutils-plugin-registry
+module github.com/YStreamUtils/YStreamUtils-Plugin-Registry/ci
 
 go 1.25.1
 
