@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/BurntSushi/toml"
@@ -44,21 +45,23 @@ func main() {
 	if githubToken != "" {
 		client, err = github.NewClient(github.WithAuthToken(githubToken))
 		if err != nil {
-			panic(fmt.Sprintf("[Linter] Severe configuration failure initializing authenticated API context: %v", err))
+			panic(fmt.Sprintf("[Linter] Configuration failure: %v", err))
 		}
 		fmt.Println("[Linter] Initializing authenticated GitHub API client context.")
 	} else {
 		client, err = github.NewClient()
 		if err != nil {
-			panic(fmt.Sprintf("[Linter] Severe configuration failure initializing baseline API context: %v", err))
+			panic(fmt.Sprintf("[Linter] Configuration failure: %v", err))
 		}
 		fmt.Println("[Linter] Initializing unauthenticated GitHub API client context.")
 	}
 
-	projectRoot, err := os.Getwd()
-	if err != nil {
-		panic(fmt.Sprintf("Unable to resolve current working directory context: %v", err))
+	_, filename, _, ok := runtime.Caller(0)
+	if !ok {
+		panic("Unable to look up current runtime compilation directory context")
 	}
+
+	projectRoot := filepath.Dir(filepath.Dir(filename))
 	pluginsPath := filepath.Join(projectRoot, "plugins")
 
 	var targetDirs []string

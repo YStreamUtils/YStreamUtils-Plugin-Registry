@@ -36,9 +36,9 @@ jobs:
           go mod download
 
       - name: Verify Changed Plugin Manifests
+        working-directory: ci
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Exposes something like "plugins/owner1/plugin1 plugins/owner2/plugin2"
           CHANGED_PLUGINS: ${{ steps.changed-files.outputs.all_changed_files }}
         run: |
-          go run -modfile ci/go.mod ci/verify.go
+          go run verify.go
