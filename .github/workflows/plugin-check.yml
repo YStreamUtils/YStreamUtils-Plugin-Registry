@@ -2,9 +2,10 @@ name: Plugin Registry Validation Guard
 
 on:
   pull_request:
-    branches: [ main ]
+    branches: [main]
     paths:
-      - 'plugins/**'
+      - "plugins/**"
+  workflow_dispatch:
 
 jobs:
   lint-and-validate:
@@ -16,7 +17,7 @@ jobs:
       - name: Setup Go Environment
         uses: actions/setup-go@v5
         with:
-          go-version: '1.26'
+          go-version: "1.26"
 
       - name: Pull Go Modules
         run: |

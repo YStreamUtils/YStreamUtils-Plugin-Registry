@@ -77,12 +77,16 @@ func main() {
 			}
 
 			if !strings.EqualFold(manifest.Name, pluginDirName) {
-				return fmt.Errorf("directory name mismatch: Functional execution namespace '%s' must match folder folder name '%s'",
+				return fmt.Errorf("directory name mismatch: Plugin name '%s' must match folder folder name '%s'",
 					manifest.Name, pluginDirName)
 			}
 
 			if len(manifest.Authors) == 0 {
-				return fmt.Errorf("attribution error: At least one developer name must be declared inside the authors array allocation")
+				return fmt.Errorf("At least one developer name must be declared inside the authors array allocation.")
+			}
+
+			if strings.TrimSpace(manifest.Source.EntryPoint) == "" {
+				return fmt.Errorf("Manifest must have an entrypoint.")
 			}
 
 			ns := strings.ToLower(manifest.Name)
@@ -96,19 +100,20 @@ func main() {
 				return fmt.Errorf("github api connectivity fault: Unable to fetch latest release tags for public repository %s/%s: %w", manifest.Source.Owner, manifest.Source.Repository, err)
 			}
 
-			hasWasm := false
+			hasEntryoint := false
 			for _, asset := range release.Assets {
-				if strings.HasSuffix(asset.GetName(), ".wasm") {
-					hasWasm = true
+				if manifest.Source.EntryPoint == asset.GetName() {
+					hasEntryoint = true
 					break
 				}
+
 			}
 
-			if !hasWasm {
-				return fmt.Errorf("release payload validation fault: Latest GitHub release '%s' for %s/%s lacks an accompanying compiled target .wasm file asset", release.GetTagName(), manifest.Source.Owner, manifest.Source.Repository)
+			if !hasEntryoint {
+				return fmt.Errorf("release payload validation fault: Latest GitHub release '%s' for %s/%s lacks an accompanying entrypoint", release.GetTagName(), manifest.Source.Owner, manifest.Source.Repository)
 			}
 
-			fmt.Printf("✅ PASS: Registry profile %s/%s verified cleanly.\n", ownerScope, manifest.Name)
+			fmt.Printf("✅ PASS: Registry plugin %s/%s verified cleanly.\n", ownerScope, manifest.Name)
 		}
 		return nil
 	})
