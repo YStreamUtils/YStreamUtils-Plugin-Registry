@@ -140,6 +140,7 @@ func main() {
 
 			expectedZipName := fmt.Sprintf("%s.zip", manifest.Name)
 			var zipAsset *github.ReleaseAsset
+
 			for _, asset := range release.Assets {
 				if strings.EqualFold(asset.GetName(), expectedZipName) {
 					zipAsset = asset
@@ -148,7 +149,7 @@ func main() {
 			}
 
 			if zipAsset == nil {
-				return fmt.Errorf("release payload validation fault: Latest GitHub release '%s' for %s/%s lacks a valid compressed .zip asset", release.GetTagName(), manifest.Source.Owner, manifest.Source.Repository)
+				return fmt.Errorf("release payload validation fault: Latest GitHub release '%s' for %s/%s lacks the specific plugin archive: '%s'", release.GetTagName(), manifest.Source.Owner, manifest.Source.Repository, expectedZipName)
 			}
 
 			rc, _, err := client.Repositories.DownloadReleaseAsset(egCtx, manifest.Source.Owner, manifest.Source.Repository, zipAsset.GetID(), http.DefaultClient)
@@ -187,6 +188,30 @@ func main() {
 
 			if !hasTypeDefinitions {
 				return fmt.Errorf("release payload validation fault: Compressed file archive '%s' is missing the required Monaco engine auto-complete type file: 'index.d.ts'", zipAsset.GetName())
+			}
+
+			currentActiveVersion := manifest.Version 
+			isNewPlugin := false
+
+			if currentActiveVersion == "" {
+				isNewPlugin = true
+			} else {
+				oldParts := strings.Split(currentActiveVersion, ".")
+				newParts := strings.Split(manifest.Version, ".")
+
+				if len(oldParts) == 3 && len(newParts) == 3 {
+					if oldParts[0] != newParts[0] {
+						fmt.Printf("[Security] ⚠️ Major version bump detected (%s -> %s). Halting automerge.\n", currentActiveVersion, manifest.Version)
+						_ = os.WriteFile(".require_manual_review", []byte("major_bump"), 0644)
+					} else {
+						fmt.Printf("[Linter] Safe patch/minor bump detected (%s -> %s). Eligible for automerge.\n", currentActiveVersion, manifest.Version)
+					}
+				}
+			}
+
+			if isNewPlugin {
+				fmt.Println("[Security] ⚠️ Brand new plugin registration detected. Halting automerge.")
+				_ = os.WriteFile(".require_manual_review", []byte("new_plugin"), 0644)
 			}
 
 			fmt.Printf("✅ PASS: Verified %s/%s cleanly.\n", ownerScope, manifest.Name)
