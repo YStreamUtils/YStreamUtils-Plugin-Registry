@@ -7,32 +7,12 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"ystreamutils-plugin-registry/types"
 
 	"github.com/BurntSushi/toml"
 	"github.com/google/go-github/v90/github"
 	"golang.org/x/sync/errgroup"
 )
-
-type Permission string
-
-type SourceConfig struct {
-	Repository string `toml:"repository"`
-	Owner      string `toml:"owner"`
-	EntryPoint string `toml:"entry_point"`
-}
-
-type DocumentationConfig struct {
-	Description string `toml:"description"`
-}
-
-type PluginManifest struct {
-	Name          string              `toml:"name"`
-	Version       string              `toml:"version"`
-	Permissions   []Permission        `toml:"permissions"`
-	Authors       []string            `toml:"authors"`
-	Source        SourceConfig        `toml:"source"`
-	Documentation DocumentationConfig `toml:"documentation"`
-}
 
 func main() {
 	fmt.Println("=== Scanning Registry Pipeline ===")
@@ -61,7 +41,8 @@ func main() {
 		panic("Unable to look up current runtime compilation directory context")
 	}
 
-	projectRoot := filepath.Dir(filepath.Dir(filename))
+	// Because we moved deeper into ci/verify/, we climb out 3 levels to reach the root
+	projectRoot := filepath.Dir(filepath.Dir(filepath.Dir(filename)))
 	pluginsPath := filepath.Join(projectRoot, "plugins")
 
 	var targetDirs []string
@@ -128,7 +109,7 @@ func main() {
 			ownerScope := parts[0]
 			pluginDirName := parts[1]
 
-			var manifest PluginManifest
+			var manifest types.PluginManifest
 			if _, err := toml.DecodeFile(manifestPath, &manifest); err != nil {
 				return fmt.Errorf("TOML PARSING ERROR inside %s: %w", manifestPath, err)
 			}
@@ -145,7 +126,7 @@ func main() {
 				return fmt.Errorf("at least one developer name must be declared inside the authors array allocation inside %s", manifestPath)
 			}
 
-			if strings.TrimSpace(manifest.Source.EntryPoint) == "" {
+			if strings.TrimSpace(manifest.EntryPoint) == "" {
 				return fmt.Errorf("manifest must have an entrypoint target string defined inside %s", manifestPath)
 			}
 
@@ -156,14 +137,14 @@ func main() {
 
 			hasEntrypoint := false
 			for _, asset := range release.Assets {
-				if manifest.Source.EntryPoint == asset.GetName() {
+				if manifest.EntryPoint == asset.GetName() {
 					hasEntrypoint = true
 					break
 				}
 			}
 
 			if !hasEntrypoint {
-				return fmt.Errorf("release payload validation fault: Latest GitHub release '%s' for %s/%s lacks asset matching '%s'", release.GetTagName(), manifest.Source.Owner, manifest.Source.Repository, manifest.Source.EntryPoint)
+				return fmt.Errorf("release payload validation fault: Latest GitHub release '%s' for %s/%s lacks asset matching '%s'", release.GetTagName(), manifest.Source.Owner, manifest.Source.Repository, manifest.EntryPoint)
 			}
 
 			fmt.Printf("✅ PASS: Verified %s/%s cleanly.\n", ownerScope, manifest.Name)
