@@ -1,8 +1,12 @@
 package main
 
 import (
+	"archive/zip"
+	"bytes"
 	"context"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -41,7 +45,6 @@ func main() {
 		panic("Unable to look up current runtime compilation directory context")
 	}
 
-	// Because we moved deeper into ci/verify/, we climb out 3 levels to reach the root
 	projectRoot := filepath.Dir(filepath.Dir(filepath.Dir(filename)))
 	pluginsPath := filepath.Join(projectRoot, "plugins")
 
@@ -135,16 +138,55 @@ func main() {
 				return fmt.Errorf("github api connectivity fault for %s/%s: %w", manifest.Source.Owner, manifest.Source.Repository, err)
 			}
 
-			hasEntrypoint := false
+			expectedZipName := fmt.Sprintf("%s.zip", manifest.Name)
+			var zipAsset *github.ReleaseAsset
 			for _, asset := range release.Assets {
-				if manifest.EntryPoint == asset.GetName() {
-					hasEntrypoint = true
+				if strings.EqualFold(asset.GetName(), expectedZipName) {
+					zipAsset = asset
 					break
 				}
 			}
 
+			if zipAsset == nil {
+				return fmt.Errorf("release payload validation fault: Latest GitHub release '%s' for %s/%s lacks a valid compressed .zip asset", release.GetTagName(), manifest.Source.Owner, manifest.Source.Repository)
+			}
+
+			rc, _, err := client.Repositories.DownloadReleaseAsset(egCtx, manifest.Source.Owner, manifest.Source.Repository, zipAsset.GetID(), http.DefaultClient)
+			if err != nil {
+				return fmt.Errorf("failed creating download stream context for asset '%s': %w", zipAsset.GetName(), err)
+			}
+			defer rc.Close()
+
+			zipBytes, err := io.ReadAll(rc)
+			if err != nil {
+				return fmt.Errorf("failed reading zip artifact payload buffer: %w", err)
+			}
+
+			zipReader, err := zip.NewReader(bytes.NewReader(zipBytes), int64(len(zipBytes)))
+			if err != nil {
+				return fmt.Errorf("downloaded asset file '%s' is an invalid or corrupted zip format payload: %w", zipAsset.GetName(), err)
+			}
+
+			hasEntrypoint := false
+			hasTypeDefinitions := false
+
+			for _, file := range zipReader.File {
+				cleanPath := filepath.ToSlash(file.Name)
+
+				if cleanPath == manifest.EntryPoint {
+					hasEntrypoint = true
+				}
+				if cleanPath == "index.d.ts" {
+					hasTypeDefinitions = true
+				}
+			}
+
 			if !hasEntrypoint {
-				return fmt.Errorf("release payload validation fault: Latest GitHub release '%s' for %s/%s lacks asset matching '%s'", release.GetTagName(), manifest.Source.Owner, manifest.Source.Repository, manifest.EntryPoint)
+				return fmt.Errorf("release payload validation fault: Compressed file archive '%s' is missing the declared manifest entrypoint resource path: '%s'", zipAsset.GetName(), manifest.EntryPoint)
+			}
+
+			if !hasTypeDefinitions {
+				return fmt.Errorf("release payload validation fault: Compressed file archive '%s' is missing the required Monaco engine auto-complete type file: 'index.d.ts'", zipAsset.GetName())
 			}
 
 			fmt.Printf("✅ PASS: Verified %s/%s cleanly.\n", ownerScope, manifest.Name)
