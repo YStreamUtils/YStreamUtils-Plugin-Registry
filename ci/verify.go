@@ -3,27 +3,33 @@ package main
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/BurntSushi/toml"
 	"github.com/google/go-github/v90/github"
 )
 
-type PluginManifest struct {
-	Name        string     `toml:"name"`
-	Namespace   string     `toml:"namespace"`
-	Authors     []string   `toml:"authors"`
-	Description string     `toml:"description"`
-	GitHub      GitHubMeta `toml:"github"`
+type Permission string
+
+type SourceConfig struct {
+	Repository string `toml:"repository"`
+	Owner      string `toml:"owner"`
+	EntryPoint string `toml:"entry_point"`
 }
 
-type GitHubMeta struct {
-	Owner string `toml:"owner"`
-	Repo  string `toml:"repo"`
+type DocumentationConfig struct {
+	Description string `toml:"description"`
+}
+
+type PluginManifest struct {
+	Name          string              `toml:"name"`
+	Version       string              `toml:"version"`
+	Permissions   []Permission        `toml:"permissions"`
+	Authors       []string            `toml:"authors"`
+	Source        SourceConfig        `toml:"source"`
+	Documentation DocumentationConfig `toml:"documentation"`
 }
 
 func main() {
@@ -65,29 +71,29 @@ func main() {
 				return fmt.Errorf("TOML PARSING ERROR inside %s: %w", path, err)
 			}
 
-			if !strings.EqualFold(manifest.GitHub.Owner, ownerScope) {
-				return fmt.Errorf("security boundary mismatch: Parent folder scope name '%s' must match manifest GitHub Owner target identity '%s' inside %s", 
-					ownerScope, manifest.GitHub.Owner, path)
+			if !strings.EqualFold(manifest.Source.Owner, ownerScope) {
+				return fmt.Errorf("security boundary mismatch: Parent folder scope name '%s' must match manifest GitHub Owner target identity '%s' inside %s",
+					ownerScope, manifest.Source.Owner, path)
 			}
 
-			if !strings.EqualFold(manifest.Namespace, pluginDirName) {
-				return fmt.Errorf("directory name mismatch: Functional execution namespace '%s' must match folder folder name '%s'", 
-					manifest.Namespace, pluginDirName)
+			if !strings.EqualFold(manifest.Name, pluginDirName) {
+				return fmt.Errorf("directory name mismatch: Functional execution namespace '%s' must match folder folder name '%s'",
+					manifest.Name, pluginDirName)
 			}
 
 			if len(manifest.Authors) == 0 {
 				return fmt.Errorf("attribution error: At least one developer name must be declared inside the authors array allocation")
 			}
 
-			ns := strings.ToLower(manifest.Namespace)
+			ns := strings.ToLower(manifest.Name)
 			if originalPath, duplicate := seenNamespaces[ns]; duplicate {
 				return fmt.Errorf("namespace hijacking collision: '%s' is already claimed by %s (Blocked execution path inside %s)", ns, originalPath, path)
 			}
 			seenNamespaces[ns] = path
 
-			release, _, err := client.Repositories.GetLatestRelease(ctx, manifest.GitHub.Owner, manifest.GitHub.Repo)
+			release, _, err := client.Repositories.GetLatestRelease(ctx, manifest.Source.Owner, manifest.Source.Repository)
 			if err != nil {
-				return fmt.Errorf("github api connectivity fault: Unable to fetch latest release tags for public repository %s/%s: %w", manifest.GitHub.Owner, manifest.GitHub.Repo, err)
+				return fmt.Errorf("github api connectivity fault: Unable to fetch latest release tags for public repository %s/%s: %w", manifest.Source.Owner, manifest.Source.Repository, err)
 			}
 
 			hasWasm := false
@@ -99,10 +105,10 @@ func main() {
 			}
 
 			if !hasWasm {
-				return fmt.Errorf("release payload validation fault: Latest GitHub release '%s' for %s/%s lacks an accompanying compiled target .wasm file asset", release.GetTagName(), manifest.GitHub.Owner, manifest.GitHub.Repo)
+				return fmt.Errorf("release payload validation fault: Latest GitHub release '%s' for %s/%s lacks an accompanying compiled target .wasm file asset", release.GetTagName(), manifest.Source.Owner, manifest.Source.Repository)
 			}
 
-			fmt.Printf("✅ PASS: Registry profile %s/%s verified cleanly.\n", ownerScope, manifest.Namespace)
+			fmt.Printf("✅ PASS: Registry profile %s/%s verified cleanly.\n", ownerScope, manifest.Name)
 		}
 		return nil
 	})
