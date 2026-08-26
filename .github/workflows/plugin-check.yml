@@ -2,7 +2,7 @@ name: Plugin Registry Validation Guard
 
 on:
   pull_request:
-    branches: [main]
+    branches: [master]
     paths:
       - "plugins/**"
   workflow_dispatch:
@@ -29,5 +29,5 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          cd ci
+          mkdir -p plugins
           go run ci/verify.go

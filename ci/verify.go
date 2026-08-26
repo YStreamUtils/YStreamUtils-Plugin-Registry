@@ -52,7 +52,7 @@ func main() {
 
 	_, filename, _, ok := runtime.Caller(0)
 	if !ok {
-		panic("Unable to look up current runtime directory telemetry context")
+		panic("Unable to look up current runtime directory context")
 	}
 
 	projectRoot := filepath.Dir(filepath.Dir(filename))
@@ -79,6 +79,8 @@ func main() {
 			if _, err := toml.DecodeFile(path, &manifest); err != nil {
 				return fmt.Errorf("TOML PARSING ERROR inside %s: %w", path, err)
 			}
+
+			fmt.Printf("Detected Plugin: %s\n", manifest.Name)
 
 			if !strings.EqualFold(manifest.Source.Owner, ownerScope) {
 				return fmt.Errorf("security boundary mismatch: Parent folder scope name '%s' must match manifest GitHub Owner target identity '%s' inside %s",
