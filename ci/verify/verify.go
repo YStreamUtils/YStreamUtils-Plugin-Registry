@@ -170,6 +170,7 @@ func main() {
 
 			hasEntrypoint := false
 			hasTypeDefinitions := false
+			hasManifestInsideZip := false
 
 			for _, file := range zipReader.File {
 				cleanPath := filepath.ToSlash(file.Name)
@@ -180,6 +181,9 @@ func main() {
 				if cleanPath == "index.d.ts" {
 					hasTypeDefinitions = true
 				}
+				if cleanPath == "manifest.toml" {
+					hasManifestInsideZip = true
+				}
 			}
 
 			if !hasEntrypoint {
@@ -188,6 +192,10 @@ func main() {
 
 			if !hasTypeDefinitions {
 				return fmt.Errorf("release payload validation fault: Compressed file archive '%s' is missing the required Monaco engine auto-complete type file: 'index.d.ts'", zipAsset.GetName())
+			}
+
+			if !hasManifestInsideZip {
+				return fmt.Errorf("release payload validation fault: Compressed file archive '%s' is missing its own 'manifest.toml' reference file", zipAsset.GetName())
 			}
 
 			currentActiveVersion := manifest.Version 
