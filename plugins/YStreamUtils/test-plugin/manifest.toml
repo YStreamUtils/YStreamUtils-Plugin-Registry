@@ -2,7 +2,7 @@ name = "test-plugin"
 version = "1.0.0"
 permissions = ["network"]
 authors = ["Yes (ysnt-yes)"]
-entry_point = "index.js"
+entry_point = "src/index.ts"
 
 [source]
 repository = "test-plugin"
