@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/BurntSushi/toml"
@@ -49,7 +50,15 @@ func main() {
 	seenNamespaces := make(map[string]string)
 	manifestCount := 0
 
-	err := filepath.Walk("plugins", func(path string, info os.FileInfo, err error) error {
+	_, filename, _, ok := runtime.Caller(0)
+	if !ok {
+		panic("Unable to look up current runtime directory telemetry context")
+	}
+
+	projectRoot := filepath.Dir(filepath.Dir(filename))
+	pluginsPath := filepath.Join(projectRoot, "plugins")
+
+	err := filepath.Walk(pluginsPath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
