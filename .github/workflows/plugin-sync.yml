@@ -16,13 +16,13 @@ jobs:
         id: scanner
         run: |
           echo "HAS_UPDATES=false" >> $GITHUB_ENV
-          
+
           while read -r manifest_path; do
             OWNER=$(yq '.source.owner' "$manifest_path")
             REPO=$(yq '.source.repository' "$manifest_path")
             PLUGIN_NAME=$(yq '.name' "$manifest_path")
             
-            RELEASE_JSON=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://github.com")
+            RELEASE_JSON=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/$OWNER/$REPO/releases/latest")
             LATEST_TAG=$(echo "$RELEASE_JSON" | yq '.tag_name')
             
             if [ -z "$LATEST_TAG" ] || [ "$LATEST_TAG" = "null" ]; then continue; fi
@@ -42,7 +42,7 @@ jobs:
               echo "HAS_UPDATES=true" >> $GITHUB_ENV
             fi
           done < <(find plugins -name "manifest.toml")
-          
+
           rm -rf temp_sync
 
       - name: Setup Go Environment
