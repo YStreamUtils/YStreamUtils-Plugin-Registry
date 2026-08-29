@@ -1,0 +1,12 @@
+name = "test-plugin"
+version = "1.0.0"
+permissions = ["network"]
+authors = ["Yes (ysnt-yes)"]
+entry_point = "src/index.ts"
+
+[source]
+repository = "test-plugin"
+owner = "YStreamUtils"
+
+[documentation]
+description = "An example plugin"
