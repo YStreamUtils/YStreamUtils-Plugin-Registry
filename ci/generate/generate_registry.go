@@ -1,13 +1,15 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"runtime"
 
-	"github.com/BurntSushi/toml"
 	"github.com/YStreamUtils/YStreamUtils-Plugin-Registry/ci/types"
+	"github.com/invopop/jsonschema"
 )
 
 func main() {
@@ -20,7 +22,8 @@ func main() {
 
 	projectRoot := filepath.Dir(filepath.Dir(filepath.Dir(filename)))
 	pluginsPath := filepath.Join(projectRoot, "plugins")
-	outputPath := filepath.Join(projectRoot, "public", "registry.toml")
+	outputPath := filepath.Join(projectRoot, "public", "registry.json")
+	schemaOutputPath := filepath.Join(projectRoot, "public", "schema.json")
 
 	registry := types.RegistryDistribution{
 		Name: "YStreamutils Plugin Registry",
@@ -36,24 +39,47 @@ func main() {
 			return err
 		}
 
-		if !info.IsDir() && info.Name() == "manifest.toml" {
-			var manifest types.PluginManifest
-			if _, err := toml.DecodeFile(path, &manifest); err != nil {
-				return fmt.Errorf("failed to decode TOML at %s: %w", path, err)
-			}
+		if !info.IsDir() && info.Name() == "manifest.json" {
+			err := func() error {
+				file, err := os.Open(path)
+				if err != nil {
+					return fmt.Errorf("failed to open manifest at %s: %w", path, err)
+				}
+				defer file.Close()
 
-			if manifest.Name == "" {
-				return fmt.Errorf("manifest missing name declaration at: %s", path)
-			}
+				var manifest types.PluginManifest
+				byteValue, err := io.ReadAll(file)
+				if err != nil {
+					return fmt.Errorf("failed to read file at %s: %w", path, err)
+				}
 
-			registry.Plugins = append(registry.Plugins, manifest)
-			fmt.Printf("[Bundler] Staged object index entry for plugin: %s\n", manifest.Name)
+				if err := json.Unmarshal(byteValue, &manifest); err != nil {
+					return fmt.Errorf("failed to decode JSON at %s: %w", path, err)
+				}
+
+				if manifest.Name == "" {
+					return fmt.Errorf("manifest missing name declaration at: %s", path)
+				}
+
+				registry.Plugins = append(registry.Plugins, manifest)
+				fmt.Printf("[Bundler] Staged object index entry for plugin: %s\n", manifest.Name)
+				return nil
+			}()
+
+			if err != nil {
+				return err
+			}
 		}
 		return nil
 	})
 
 	if err != nil {
 		fmt.Printf("❌ COMPILATION ARTIFACT FAILURE: %v\n", err)
+		os.Exit(1)
+	}
+
+	if err := os.MkdirAll(filepath.Dir(outputPath), 0755); err != nil {
+		fmt.Printf("❌ FOLDER CREATION FAILURE: %v\n", err)
 		os.Exit(1)
 	}
 
@@ -64,9 +90,26 @@ func main() {
 	}
 	defer outFile.Close()
 
-	encoder := toml.NewEncoder(outFile)
+	encoder := json.NewEncoder(outFile)
+	encoder.SetIndent("", "  ")
 	if err := encoder.Encode(registry); err != nil {
 		fmt.Printf("❌ ENCODER SERIALIZATION FAILURE: %v\n", err)
+		os.Exit(1)
+	}
+
+	schemaFile, err := os.Create(schemaOutputPath)
+	if err != nil {
+		fmt.Printf("❌ SCHEMA FILE CREATION FAILURE: %v\n", err)
+		os.Exit(1)
+	}
+	defer schemaFile.Close()
+
+	reflectedSchema := jsonschema.Reflect(&types.PluginManifest{})
+
+	schemaEncoder := json.NewEncoder(schemaFile)
+	schemaEncoder.SetIndent("", "  ")
+	if err := schemaEncoder.Encode(reflectedSchema); err != nil {
+		fmt.Printf("❌ SCHEMA SERIALIZATION FAILURE: %v\n", err)
 		os.Exit(1)
 	}
 

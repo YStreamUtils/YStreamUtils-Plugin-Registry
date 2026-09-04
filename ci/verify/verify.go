@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -12,7 +13,6 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/BurntSushi/toml"
 	"github.com/YStreamUtils/YStreamUtils-Plugin-Registry/ci/types"
 	"github.com/google/go-github/v90/github"
 	"golang.org/x/sync/errgroup"
@@ -66,7 +66,7 @@ func main() {
 
 	if len(targetDirs) > 0 {
 		for _, dir := range targetDirs {
-			manifestFile := filepath.Join(dir, "manifest.toml")
+			manifestFile := filepath.Join(dir, "manifest.json")
 			if _, err := os.Stat(manifestFile); err == nil {
 				manifestPaths = append(manifestPaths, manifestFile)
 			}
@@ -77,7 +77,7 @@ func main() {
 			if err != nil {
 				return err
 			}
-			if !info.IsDir() && info.Name() == "manifest.toml" {
+			if !info.IsDir() && info.Name() == "manifest.json" {
 				manifestPaths = append(manifestPaths, path)
 			}
 			return nil
@@ -99,22 +99,27 @@ func main() {
 		g.Go(func() error {
 			fmt.Printf("[Worker] Starting check on: %s\n", manifestPath)
 
-			relPath, err := filepath.Rel(pluginsPath, manifestPath)
+			relPath, err := filepath.Rel(projectRoot, manifestPath)
 			if err != nil {
 				return fmt.Errorf("failed to resolve relative path context for %s: %w", manifestPath, err)
 			}
 
 			parts := strings.Split(filepath.ToSlash(relPath), "/")
-			if len(parts) != 3 {
-				return fmt.Errorf("directory structure layout violation inside '%s'. Paths must follow 'plugins/OwnerScope/PluginName/manifest.toml'", relPath)
+			if len(parts) != 4 {
+				return fmt.Errorf("directory structure layout violation inside '%s'. Paths must follow 'plugins/OwnerScope/PluginName/manifest.json'", relPath)
 			}
 
-			ownerScope := parts[0]
-			pluginDirName := parts[1]
+			ownerScope := parts[1]
+			pluginDirName := parts[2]
+
+			jsonBytes, err := os.ReadFile(manifestPath)
+			if err != nil {
+				return fmt.Errorf("failed reading file path context: %w", err)
+			}
 
 			var manifest types.PluginManifest
-			if _, err := toml.DecodeFile(manifestPath, &manifest); err != nil {
-				return fmt.Errorf("TOML PARSING ERROR inside %s: %w", manifestPath, err)
+			if err := json.Unmarshal(jsonBytes, &manifest); err != nil {
+				return fmt.Errorf("JSON PARSING ERROR inside %s: %w", manifestPath, err)
 			}
 
 			if !strings.EqualFold(manifest.Source.Owner, ownerScope) {
@@ -181,7 +186,7 @@ func main() {
 				if cleanPath == "index.d.ts" {
 					hasTypeDefinitions = true
 				}
-				if cleanPath == "manifest.toml" {
+				if cleanPath == "manifest.json" {
 					hasManifestInsideZip = true
 				}
 			}
@@ -195,15 +200,13 @@ func main() {
 			}
 
 			if !hasManifestInsideZip {
-				return fmt.Errorf("release payload validation fault: Compressed file archive '%s' is missing its own 'manifest.toml' reference file", zipAsset.GetName())
+				return fmt.Errorf("release payload validation fault: Compressed file archive '%s' is missing its own 'manifest.json' reference file", zipAsset.GetName())
 			}
 
-			currentActiveVersion := manifest.Version 
-			isNewPlugin := false
+			currentActiveVersion := "" 
+			isNewPlugin := currentActiveVersion == ""
 
-			if currentActiveVersion == "" {
-				isNewPlugin = true
-			} else {
+			if !isNewPlugin {
 				oldParts := strings.Split(currentActiveVersion, ".")
 				newParts := strings.Split(manifest.Version, ".")
 
@@ -215,9 +218,7 @@ func main() {
 						fmt.Printf("[Linter] Safe patch/minor bump detected (%s -> %s). Eligible for automerge.\n", currentActiveVersion, manifest.Version)
 					}
 				}
-			}
-
-			if isNewPlugin {
+			} else {
 				fmt.Println("[Security] ⚠️ Brand new plugin registration detected. Halting automerge.")
 				_ = os.WriteFile(".require_manual_review", []byte("new_plugin"), 0644)
 			}

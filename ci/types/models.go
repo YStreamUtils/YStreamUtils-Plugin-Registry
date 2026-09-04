@@ -3,26 +3,26 @@ package types
 type Permission string
 
 type SourceConfig struct {
-	Repository string `toml:"repository"`
-	Owner      string `toml:"owner"`
+	Repository string `json:"repository"`
+	Owner      string `json:"owner"`
 }
 
 type DocumentationConfig struct {
-	Description string `toml:"description"`
+	Description string `json:"description"`
 }
 
 type PluginManifest struct {
-	Name          string              `toml:"name"`
-	Version       string              `toml:"version"`
-	EntryPoint    string              `toml:"entry_point"`
-	Permissions   []Permission        `toml:"permissions"`
-	Authors       []string            `toml:"authors"`
-	Source        SourceConfig        `toml:"source"`
-	Documentation DocumentationConfig `toml:"documentation"`
+	Name          string              `json:"name"`
+	Version       string              `json:"version"`
+	EntryPoint    string              `json:"entryPoint"`
+	Permissions   []Permission        `json:"permissions"`
+	Authors       []string            `json:"authors"`
+	Source        SourceConfig        `json:"source"`
+	Documentation DocumentationConfig `json:"documentation"`
 }
 
 type RegistryDistribution struct {
-	Name    string           `toml:"name"`
-	Source  SourceConfig     `toml:"source"`
-	Plugins []PluginManifest `toml:"plugins"`
+	Name    string           `json:"name"`
+	Source  SourceConfig     `json:"source"`
+	Plugins []PluginManifest `json:"plugins"`
 }
