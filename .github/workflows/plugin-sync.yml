@@ -22,12 +22,14 @@ jobs:
             REPO=$(jq -r '.source.repository' "$manifest_path")
             PLUGIN_NAME=$(jq -r '.name' "$manifest_path")
             
-            RELEASE_JSON=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/$OWNER/$REPO/releases/latest")
+            RELEASE_JSON=$(curl -s "https://api.github.com/repos/$OWNER/$REPO/releases/latest")
             LATEST_TAG=$(echo "$RELEASE_JSON" | jq -r '.tag_name')
             
             if [ -z "$LATEST_TAG" ] || [ "$LATEST_TAG" = "null" ]; then continue; fi
             
             EXPECTED_ZIP="${PLUGIN_NAME}.zip"
+            echo "Checking $PLUGIN_NAME from $OWNER/$REPO for latest release: $LATEST_TAG"
+            echo "Expected zip file: $EXPECTED_ZIP"
             DOWNLOAD_URL=$(echo "$RELEASE_JSON" | jq -r ".assets[] | select(.name == \"$EXPECTED_ZIP\") | .browser_download_url")
             
             if [ -z "$DOWNLOAD_URL" ] || [ "$DOWNLOAD_URL" = "null" ]; then continue; fi
