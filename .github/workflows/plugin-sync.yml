@@ -71,15 +71,15 @@ jobs:
           title: "chore(sync): update plugin registry manifests"
           body: "Automated scan completed. Testing package integrity..."
 
-      - name: Evaluate and Handle Automerge Phase
-        if: env.HAS_UPDATES == 'true'
+      - name: Auto-approve Pull Request
+        if: env.HAS_UPDATES == 'true' && steps.cpr.outputs.pull-request-number
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           PR_NUMBER="${{ steps.cpr.outputs.pull-request-number }}"
-
-          if [ -f .require_manual_review ]; then
-            gh pr edit "$PR_NUMBER" --add-label "manual-review-required"
+          
+          if [ ! -f .require_manual_review ]; then
+            gh pr review "$PR_NUMBER" --approve
           else
-            gh pr merge "$PR_NUMBER" --squash --auto
+            gh pr edit "$PR_NUMBER" --add-label "manual-review-required"
           fi
