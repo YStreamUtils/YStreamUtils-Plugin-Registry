@@ -1,5 +1,5 @@
 {
-  "$schema": "https://raw.githubusercontent.com/YStreamUtils/YStreamUtils-Plugin-Registry/schema.json",
+  "$schema": "https://ystreamutils.github.io/YStreamUtils-Plugin-Registry/schema.json",
   "name": "test-plugin",
   "version": "1.0.3",
   "entryPoint": "src/index.ts",
