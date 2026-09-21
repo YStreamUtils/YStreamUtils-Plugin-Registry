@@ -32,6 +32,8 @@ jobs:
             echo "Expected zip file: $EXPECTED_ZIP"
             DOWNLOAD_URL=$(echo "$RELEASE_JSON" | jq -r ".assets[] | select(.name == \"$EXPECTED_ZIP\") | .browser_download_url")
             
+            echo "Download URL: $DOWNLOAD_URL"
+
             if [ -z "$DOWNLOAD_URL" ] || [ "$DOWNLOAD_URL" = "null" ]; then continue; fi
             
             mkdir -p "temp_sync/$OWNER/$REPO"
@@ -42,7 +44,7 @@ jobs:
             unzip -p "temp_sync/$OWNER/$REPO/$EXPECTED_ZIP" "manifest.json" > "temp_sync/$OWNER/$REPO/manifest.json"
 
             echo "Comparing existing manifest with the latest release manifest..."
-            
+
             if ! cmp -s "$manifest_path" "temp_sync/$OWNER/$REPO/manifest.json"; then
               cp "temp_sync/$OWNER/$REPO/manifest.json" "$manifest_path"
               cat "$manifest_path"
