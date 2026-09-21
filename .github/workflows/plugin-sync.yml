@@ -36,8 +36,12 @@ jobs:
             
             mkdir -p "temp_sync/$OWNER/$REPO"
             curl -sL "$DOWNLOAD_URL" -o "temp_sync/$OWNER/$REPO/$EXPECTED_ZIP"
-            
+
+            echo "Extracting manifest.json from $EXPECTED_ZIP"
+
             unzip -p "temp_sync/$OWNER/$REPO/$EXPECTED_ZIP" "manifest.json" > "temp_sync/$OWNER/$REPO/manifest.json"
+
+            echo "Comparing existing manifest with the latest release manifest..."
             
             if ! cmp -s "$manifest_path" "temp_sync/$OWNER/$REPO/manifest.json"; then
               cp "temp_sync/$OWNER/$REPO/manifest.json" "$manifest_path"
