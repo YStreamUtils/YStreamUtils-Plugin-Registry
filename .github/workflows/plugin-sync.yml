@@ -16,53 +16,27 @@ jobs:
       - name: Checkout Registry Code
         uses: actions/checkout@v4
 
-      - name: Scan for Manifest Updates
-        id: scanner
-        run: |
-          rm -f .has_updates_token
-
-          while read -r manifest_path; do
-            OWNER=$(jq -r '.source.owner' "$manifest_path")
-            REPO=$(jq -r '.source.repository' "$manifest_path")
-            PLUGIN_NAME=$(jq -r '.name' "$manifest_path")
-            
-            RELEASE_JSON=$(curl -sfL "https://api.github.com/repos/$OWNER/$REPO/releases/latest") || continue
-            LATEST_TAG=$(echo "$RELEASE_JSON" | jq -r '.tag_name')
-            
-            if [ -z "$LATEST_TAG" ] || [ "$LATEST_TAG" = "null" ]; then continue; fi
-            
-            EXPECTED_ZIP="${PLUGIN_NAME}.zip"
-            DOWNLOAD_URL=$(echo "$RELEASE_JSON" | jq -r ".assets[] | select(.name == \"$EXPECTED_ZIP\") | .browser_download_url")
-            
-            if [ -z "$DOWNLOAD_URL" ] || [ "$DOWNLOAD_URL" = "null" ]; then continue; fi
-            
-            mkdir -p "temp_sync/$OWNER/$REPO"
-            if curl -sfL "$DOWNLOAD_URL" -o "temp_sync/$OWNER/$REPO/$EXPECTED_ZIP"; then
-              if unzip -p "temp_sync/$OWNER/$REPO/$EXPECTED_ZIP" "manifest.json" > "temp_sync/$OWNER/$REPO/manifest.json" 2>/dev/null; then
-                if ! cmp -s "$manifest_path" "temp_sync/$OWNER/$REPO/manifest.json"; then
-                  cp "$manifest_path" "temp_sync/$OWNER/$REPO/old_manifest.json"
-                  cp "temp_sync/$OWNER/$REPO/manifest.json" "$manifest_path"
-                  touch .has_updates_token
-                fi
-              fi
-            fi
-          done < <(find plugins -name "manifest.json")
-
-          rm -rf temp_sync
-
-          if [ -f .has_updates_token ]; then
-            echo "HAS_UPDATES=true" >> $GITHUB_ENV
-            rm -f .has_updates_token
-          else
-            echo "HAS_UPDATES=false" >> $GITHUB_ENV
-          fi
-
       - name: Setup Go Environment
-        if: env.HAS_UPDATES == 'true'
         uses: actions/setup-go@v5
         with:
           go-version: "1.26.x"
           cache-dependency-path: ci/go.sum
+
+      - name: Scan for Manifest Updates
+        working-directory: ci
+        run: |
+          rm -f ../.has_updates_token
+          go mod download
+          go run sync/sync.go
+          
+          if [ -f ../.has_updates_token ]; then
+            echo "HAS_UPDATES=true" >> $GITHUB_ENV
+            rm -f ../.has_updates_token
+          else
+            echo "HAS_UPDATES=false" >> $GITHUB_ENV
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Run Go Registry Integrity Linter
         if: env.HAS_UPDATES == 'true'
@@ -70,7 +44,6 @@ jobs:
         run: |
           export CHANGED_PLUGINS="plugins/"
           export GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}"
-          go mod download
           go run verify/verify.go
 
       - name: Create Tracking Pull Request
@@ -90,7 +63,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           PR_NUMBER="${{ steps.cpr.outputs.pull-request-number }}"
-
+          
           if [ ! -f ci/.require_manual_review ]; then
             gh pr review "$PR_NUMBER" --approve
           else
