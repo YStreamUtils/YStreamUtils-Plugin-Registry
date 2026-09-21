@@ -52,8 +52,8 @@ func main() {
 	changedPluginsEnv := os.Getenv("CHANGED_PLUGINS")
 
 	if changedPluginsEnv != "" {
-		rawDirs := strings.Fields(changedPluginsEnv)
-		for _, d := range rawDirs {
+		rawDirs := strings.FieldsSeq(changedPluginsEnv)
+		for d := range rawDirs {
 			absPath := filepath.Clean(filepath.Join(projectRoot, d))
 			if strings.HasPrefix(absPath, pluginsPath) && absPath != pluginsPath {
 				targetDirs = append(targetDirs, absPath)

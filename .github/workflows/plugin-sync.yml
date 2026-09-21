@@ -19,14 +19,14 @@ jobs:
       - name: Scan for Manifest Updates
         id: scanner
         run: |
-          echo "HAS_UPDATES=false" >> $GITHUB_ENV
+          rm -f .has_updates_token
 
           while read -r manifest_path; do
             OWNER=$(jq -r '.source.owner' "$manifest_path")
             REPO=$(jq -r '.source.repository' "$manifest_path")
             PLUGIN_NAME=$(jq -r '.name' "$manifest_path")
             
-            RELEASE_JSON=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/$OWNER/$REPO/releases/latest")
+            RELEASE_JSON=$(curl -sfL "https://api.github.com/repos/$OWNER/$REPO/releases/latest") || continue
             LATEST_TAG=$(echo "$RELEASE_JSON" | jq -r '.tag_name')
             
             if [ -z "$LATEST_TAG" ] || [ "$LATEST_TAG" = "null" ]; then continue; fi
@@ -37,17 +37,25 @@ jobs:
             if [ -z "$DOWNLOAD_URL" ] || [ "$DOWNLOAD_URL" = "null" ]; then continue; fi
             
             mkdir -p "temp_sync/$OWNER/$REPO"
-            curl -sL "$DOWNLOAD_URL" -o "temp_sync/$OWNER/$REPO/$EXPECTED_ZIP"
-            
-            unzip -p "temp_sync/$OWNER/$REPO/$EXPECTED_ZIP" "manifest.json" > "temp_sync/$OWNER/$REPO/manifest.json"
-            
-            if ! cmp -s "$manifest_path" "temp_sync/$OWNER/$REPO/manifest.json"; then
-              cp "temp_sync/$OWNER/$REPO/manifest.json" "$manifest_path"
-              echo "HAS_UPDATES=true" >> $GITHUB_ENV
+            if curl -sfL "$DOWNLOAD_URL" -o "temp_sync/$OWNER/$REPO/$EXPECTED_ZIP"; then
+              if unzip -p "temp_sync/$OWNER/$REPO/$EXPECTED_ZIP" "manifest.json" > "temp_sync/$OWNER/$REPO/manifest.json" 2>/dev/null; then
+                if ! cmp -s "$manifest_path" "temp_sync/$OWNER/$REPO/manifest.json"; then
+                  cp "$manifest_path" "temp_sync/$OWNER/$REPO/old_manifest.json"
+                  cp "temp_sync/$OWNER/$REPO/manifest.json" "$manifest_path"
+                  touch .has_updates_token
+                fi
+              fi
             fi
           done < <(find plugins -name "manifest.json")
 
           rm -rf temp_sync
+
+          if [ -f .has_updates_token ]; then
+            echo "HAS_UPDATES=true" >> $GITHUB_ENV
+            rm -f .has_updates_token
+          else
+            echo "HAS_UPDATES=false" >> $GITHUB_ENV
+          fi
 
       - name: Setup Go Environment
         if: env.HAS_UPDATES == 'true'
@@ -61,6 +69,7 @@ jobs:
         working-directory: ci
         run: |
           export CHANGED_PLUGINS="plugins/"
+          export GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}"
           go mod download
           go run verify/verify.go
 
@@ -81,8 +90,8 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           PR_NUMBER="${{ steps.cpr.outputs.pull-request-number }}"
-          
-          if [ ! -f .require_manual_review ]; then
+
+          if [ ! -f ci/.require_manual_review ]; then
             gh pr review "$PR_NUMBER" --approve
           else
             gh pr edit "$PR_NUMBER" --add-label "manual-review-required"
