@@ -15,6 +15,7 @@ type PluginManifest struct {
 	Name          string              `json:"name"`
 	Version       string              `json:"version"`
 	EntryPoint    string              `json:"entryPoint"`
+	ClassName     string              `json:"className"`
 	Permissions   []Permission        `json:"permissions"`
 	Authors       []string            `json:"authors"`
 	Source        SourceConfig        `json:"source"`
