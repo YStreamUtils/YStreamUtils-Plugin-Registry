@@ -180,7 +180,7 @@ func main() {
 			for _, file := range zipReader.File {
 				cleanPath := filepath.ToSlash(file.Name)
 
-				if cleanPath == manifest.EntryPoint {
+				if cleanPath == "index.js" {
 					hasEntrypoint = true
 				}
 				if cleanPath == "index.d.ts" {
@@ -192,7 +192,7 @@ func main() {
 			}
 
 			if !hasEntrypoint {
-				return fmt.Errorf("release payload validation fault: Compressed file archive '%s' is missing the declared manifest entrypoint resource path: '%s'", zipAsset.GetName(), manifest.EntryPoint)
+				return fmt.Errorf("release payload validation fault: Compressed file archive '%s' is missing the declared manifest entrypoint resource path: 'index.js'", zipAsset.GetName())
 			}
 
 			if !hasTypeDefinitions {
@@ -203,7 +203,7 @@ func main() {
 				return fmt.Errorf("release payload validation fault: Compressed file archive '%s' is missing its own 'manifest.json' reference file", zipAsset.GetName())
 			}
 
-			currentActiveVersion := "" 
+			currentActiveVersion := ""
 			isNewPlugin := currentActiveVersion == ""
 
 			if !isNewPlugin {
