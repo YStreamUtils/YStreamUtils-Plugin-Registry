@@ -28,27 +28,17 @@ jobs:
             if [ -z "$LATEST_TAG" ] || [ "$LATEST_TAG" = "null" ]; then continue; fi
             
             EXPECTED_ZIP="${PLUGIN_NAME}.zip"
-            echo "Checking $PLUGIN_NAME from $OWNER/$REPO for latest release: $LATEST_TAG"
-            echo "Expected zip file: $EXPECTED_ZIP"
-            echo "Release JSON: $RELEASE_JSON"
             DOWNLOAD_URL=$(echo "$RELEASE_JSON" | jq -r ".assets[] | select(.name == \"$EXPECTED_ZIP\") | .browser_download_url")
             
-            echo "Download URL: $DOWNLOAD_URL"
-
             if [ -z "$DOWNLOAD_URL" ] || [ "$DOWNLOAD_URL" = "null" ]; then continue; fi
             
             mkdir -p "temp_sync/$OWNER/$REPO"
             curl -sL "$DOWNLOAD_URL" -o "temp_sync/$OWNER/$REPO/$EXPECTED_ZIP"
 
-            echo "Extracting manifest.json from $EXPECTED_ZIP"
-
             unzip -p "temp_sync/$OWNER/$REPO/$EXPECTED_ZIP" "manifest.json" > "temp_sync/$OWNER/$REPO/manifest.json"
-
-            echo "Comparing existing manifest with the latest release manifest..."
 
             if ! cmp -s "$manifest_path" "temp_sync/$OWNER/$REPO/manifest.json"; then
               cp "temp_sync/$OWNER/$REPO/manifest.json" "$manifest_path"
-              echo "Updated manifest for $PLUGIN_NAME"
               echo "HAS_UPDATES=true" >> $GITHUB_ENV
             fi
           done < <(find plugins -name "manifest.json")
