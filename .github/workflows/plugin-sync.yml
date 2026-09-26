@@ -10,62 +10,42 @@ permissions:
   pull-requests: write
 
 jobs:
-  scan-and-build-pr:
+  sync-upstream-plugins:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Registry Code
         uses: actions/checkout@v4
 
-      - name: Scan for Manifest Updates
-        id: scanner
-        run: |
-          echo "HAS_UPDATES=false" >> $GITHUB_ENV
-
-          while read -r manifest_path; do
-            OWNER=$(jq -r '.source.owner' "$manifest_path")
-            REPO=$(jq -r '.source.repository' "$manifest_path")
-            PLUGIN_NAME=$(jq -r '.name' "$manifest_path")
-            
-            RELEASE_JSON=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/$OWNER/$REPO/releases/latest")
-            LATEST_TAG=$(echo "$RELEASE_JSON" | jq -r '.tag_name')
-            
-            if [ -z "$LATEST_TAG" ] || [ "$LATEST_TAG" = "null" ]; then continue; fi
-            
-            EXPECTED_ZIP="${PLUGIN_NAME}.zip"
-            DOWNLOAD_URL=$(echo "$RELEASE_JSON" | jq -r ".assets[] | select(.name == \"$EXPECTED_ZIP\") | .browser_download_url")
-            
-            if [ -z "$DOWNLOAD_URL" ] || [ "$DOWNLOAD_URL" = "null" ]; then continue; fi
-            
-            mkdir -p "temp_sync/$OWNER/$REPO"
-            curl -sL "$DOWNLOAD_URL" -o "temp_sync/$OWNER/$REPO/$EXPECTED_ZIP"
-            
-            unzip -p "temp_sync/$OWNER/$REPO/$EXPECTED_ZIP" "manifest.json" > "temp_sync/$OWNER/$REPO/manifest.json"
-            
-            if ! cmp -s "$manifest_path" "temp_sync/$OWNER/$REPO/manifest.json"; then
-              cp "temp_sync/$OWNER/$REPO/manifest.json" "$manifest_path"
-              echo "HAS_UPDATES=true" >> $GITHUB_ENV
-            fi
-          done < <(find plugins -name "manifest.json")
-
-          rm -rf temp_sync
-
-      - name: Setup Go Environment
-        if: env.HAS_UPDATES == 'true'
-        uses: actions/setup-go@v5
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
         with:
-          go-version: "1.26.x"
-          cache-dependency-path: ci/go.sum
+          dotnet-version: '10.x'
 
-      - name: Run Go Registry Integrity Linter
-        if: env.HAS_UPDATES == 'true'
-        working-directory: ci
+      - name: Execute Sync Engine
+        id: sync_run
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          export CHANGED_PLUGINS="plugins/"
-          go mod download
-          go run verify/verify.go
+          dotnet run --project ci/ci.csproj -- --sync
+          
+          # Intercept C# application exit codes natively
+          STATUS=$?
+          if [ $STATUS -eq 0 ]; then
+            echo "UPDATES_FOUND=false" >> $GITHUB_ENV
+          elif [ $STATUS -eq 10 ]; then
+            echo "UPDATES_FOUND=true" >> $GITHUB_ENV
+            echo "REQUIRES_REVIEW=false" >> $GITHUB_ENV
+          elif [ $STATUS -eq 11 ]; then
+            echo "UPDATES_FOUND=true" >> $GITHUB_ENV
+            echo "REQUIRES_REVIEW=true" >> $GITHUB_ENV
+          else
+            echo "Error: Sync engine encountered an unhandled crash or exception."
+            exit $STATUS
+          fi
 
       - name: Create Tracking Pull Request
-        if: env.HAS_UPDATES == 'true'
+        if: env.UPDATES_FOUND == 'true'
         id: cpr
         uses: peter-evans/create-pull-request@v6
         with:
@@ -73,17 +53,19 @@ jobs:
           commit-message: "chore(plugins): auto-sync upstream manifest modifications"
           branch: "automated/plugin-manifest-sync"
           title: "chore(sync): update plugin registry manifests"
-          body: "Automated scan completed. Testing package integrity..."
+          body: "Automated .NET background sync completed successfully. Forwarding changes downstream..."
 
-      - name: Auto-approve Pull Request
-        if: env.HAS_UPDATES == 'true' && steps.cpr.outputs.pull-request-number != ''
+      - name: Process Pull Request Approval Status
+        if: env.UPDATES_FOUND == 'true' && steps.cpr.outputs.pull-request-number != ''
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           PR_NUMBER="${{ steps.cpr.outputs.pull-request-number }}"
           
-          if [ ! -f .require_manual_review ]; then
+          if [ "${{ env.REQUIRES_REVIEW }}" = "false" ]; then
+            echo "Safe update detected. Auto-approving PR #$PR_NUMBER..."
             gh pr review "$PR_NUMBER" --approve
           else
+            echo "Major version modification detected. Labeling PR #$PR_NUMBER for manual review..."
             gh pr edit "$PR_NUMBER" --add-label "manual-review-required"
           fi

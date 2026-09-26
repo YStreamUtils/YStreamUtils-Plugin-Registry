@@ -3,8 +3,6 @@ name: Plugin Registry Validation
 on:
   pull_request:
     branches: [master]
-    paths:
-      - "plugins/**"
   workflow_dispatch:
 
 permissions:
@@ -15,34 +13,15 @@ jobs:
   lint-and-validate:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Code Context
+      - name: Checkout Code
         uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
         with:
-          fetch-depth: 0
+          dotnet-version: '10.x'
 
-      - name: Get Changed Plugin Directories
-        id: changed-files
-        uses: tj-actions/changed-files@v45
-        with:
-          dir_names: true
-          dir_names_max_depth: 3
-          files: "plugins/**"
-
-      - name: Setup Go Environment
-        uses: actions/setup-go@v5
-        with:
-          go-version: "1.26.x"
-          cache-dependency-path: ci/go.sum
-
-      - name: Pull Go Modules
-        run: |
-          cd ci
-          go mod download
-
-      - name: Verify Changed Plugin Manifests
-        working-directory: ci
+      - name: Verify All Plugin Manifests
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CHANGED_PLUGINS: ${{ steps.changed-files.outputs.all_changed_files }}
-        run: |
-          go run verify/verify.go
+        run: dotnet run --project ci/ci.csproj -- --verify

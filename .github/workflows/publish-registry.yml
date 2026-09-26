@@ -26,22 +26,14 @@ jobs:
       - name: Checkout Code Context
         uses: actions/checkout@v4
 
-      - name: Setup Go Environment
-        uses: actions/setup-go@v5
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
         with:
-          go-version: "1.26.x"
-          cache-dependency-path: ci/go.sum
-
-      - name: Pull Go Modules
-        run: |
-          cd ci
-          go mod download
+          dotnet-version: '10.x'
 
       - name: Generate Unified Registry Asset
-        working-directory: ci/generate
         run: |
-          mkdir -p ../../public
-          go run generate_registry.go
+          dotnet run --project ci/ci.csproj -- --publish
 
       - name: Setup Pages Infrastructure
         uses: actions/configure-pages@v5

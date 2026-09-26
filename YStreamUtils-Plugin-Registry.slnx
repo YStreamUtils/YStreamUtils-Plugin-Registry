@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="ci/ci.csproj" />
+</Solution>
+
+
+<!-- This is mainly so Rider stops W H I N I N G -->

@@ -1,0 +1,30 @@
+{
+  "version": 2,
+  "dgSpecHash": "YJunEK30ONw=",
+  "success": true,
+  "projectFilePath": "F:\\YStreamUtils\\YStreamUtils-Plugin-Registry\\ci\\ci.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\User\\.nuget\\packages\\humanizer.core\\3.0.10\\humanizer.core.3.0.10.nupkg.sha512",
+    "C:\\Users\\User\\.nuget\\packages\\json.more.net\\3.0.1\\json.more.net.3.0.1.nupkg.sha512",
+    "C:\\Users\\User\\.nuget\\packages\\jsonpointer.net\\7.0.2\\jsonpointer.net.7.0.2.nupkg.sha512",
+    "C:\\Users\\User\\.nuget\\packages\\jsonschema.net\\9.4.0\\jsonschema.net.9.4.0.nupkg.sha512",
+    "C:\\Users\\User\\.nuget\\packages\\jsonschema.net.generation\\7.4.0\\jsonschema.net.generation.7.4.0.nupkg.sha512",
+    "C:\\Users\\User\\.nuget\\packages\\octokit\\14.0.0\\octokit.14.0.0.nupkg.sha512",
+    "C:\\Users\\User\\.nuget\\packages\\system.reflection.metadata\\10.0.12\\system.reflection.metadata.10.0.12.nupkg.sha512",
+    "C:\\Users\\User\\.nuget\\packages\\ystreamutils.sdk\\1.0.0-alpha\\ystreamutils.sdk.1.0.0-alpha.nupkg.sha512"
+  ],
+  "logs": [
+    {
+      "code": "NU1510",
+      "level": "Warning",
+      "message": "PackageReference System.Reflection.Metadata will not be pruned. Consider removing this package from your dependencies, as it is likely unnecessary.",
+      "projectPath": "F:\\YStreamUtils\\YStreamUtils-Plugin-Registry\\ci\\ci.csproj",
+      "warningLevel": 1,
+      "filePath": "F:\\YStreamUtils\\YStreamUtils-Plugin-Registry\\ci\\ci.csproj",
+      "libraryId": "System.Reflection.Metadata",
+      "targetGraphs": [
+        "net10.0"
+      ]
+    }
+  ]
+}
