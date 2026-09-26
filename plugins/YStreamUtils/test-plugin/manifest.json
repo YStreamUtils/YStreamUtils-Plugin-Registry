@@ -1,10 +1,14 @@
 {
   "$schema": "https://ystreamutils.github.io/YStreamUtils-Plugin-Registry/schema.json",
   "name": "test-plugin",
-  "version": "1.0.5",
+  "version": "1.0.22",
   "entryPoint": "src/index.ts",
-  "permissions": ["network"],
-  "authors": ["Yes (ysnt-yes)"],
+  "permissions": [
+    "network"
+  ],
+  "authors": [
+    "Yes (ysnt-yes)"
+  ],
   "source": {
     "repository": "test-plugin",
     "owner": "YStreamUtils"
