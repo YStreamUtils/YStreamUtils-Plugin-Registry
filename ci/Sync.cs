@@ -75,6 +75,12 @@ public static class Sync
                     var assemblyByteMap = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
                     foreach (var entry in archive.Entries)
                     {
+                        
+                        if (entry.Name.Contains("YStreamUtils-PluginSDK", StringComparison.OrdinalIgnoreCase))
+                        {
+                            continue;
+                        }
+                        
                         if (!entry.Name.EndsWith(".dll", StringComparison.OrdinalIgnoreCase)) continue;
                         await using var entryStream = await entry.OpenAsync();
                         using var ms = new MemoryStream();
