@@ -1,0 +1,5 @@
+﻿<wpf:ResourceDictionary xml:space="preserve" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:s="clr-namespace:System;assembly=mscorlib" xmlns:ss="urn:shemas-jetbrains-com:settings-storage-xaml" xmlns:wpf="http://schemas.microsoft.com/winfx/2006/xaml/presentation">
+	<s:String x:Key="/Default/CodeInspection/ExcludedFiles/FilesAndFoldersToSkip2/=7020124F_002D9FFC_002D4AC3_002D8F3D_002DAAB8E0240759_002Ff_003APluginManifestAttribute_002Ecs_002Fl_003AC_0021_003FUsers_003FUser_003FAppData_003FRoaming_003FJetBrains_003FRider2026_002E2_003Fresharper_002Dhost_003FDecompilerCache_003Fdecompiler_003F05005706895d454b95eb7cb55acd6a4e3200_003F54_003Fb5fe73fc_003FPluginManifestAttribute_002Ecs/@EntryIndexedValue">ForceIncluded</s:String>
+	<s:String x:Key="/Default/Environment/AssemblyExplorer/XmlDocument/@EntryValue">&lt;AssemblyExplorer&gt;&#xD;
+  &lt;Assembly Path="C:\Users\User\.nuget\packages\ystreamutils.sdk\1.0.0-alpha\lib\net10.0\YStreamUtils-PluginSDK.dll" /&gt;&#xD;
+&lt;/AssemblyExplorer&gt;</s:String></wpf:ResourceDictionary>

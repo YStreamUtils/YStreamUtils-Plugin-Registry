@@ -99,8 +99,9 @@ public static class Sync
                         }
 
                         var targetDllKey = $"{assemblyName.Name}.dll";
-                        return assemblyByteMap.TryGetValue(targetDllKey, out var dependencyBytes) 
-                            ? context.LoadFromStream(new MemoryStream(dependencyBytes)) : null;
+                        return assemblyByteMap.TryGetValue(targetDllKey, out var dependencyBytes)
+                            ? context.LoadFromStream(new MemoryStream(dependencyBytes))
+                            : null;
                     };
 
                     loadContext.Resolving += resolver;
@@ -109,19 +110,34 @@ public static class Sync
                     {
                         var assembly = loadContext.LoadFromStream(seekableDllStream);
 
-                        var attrData = assembly.GetCustomAttributesData()
-                            .FirstOrDefault(a => a.AttributeType.Name == nameof(PluginManifestAttribute) ||
-                                                 a.AttributeType.FullName == typeof(PluginManifestAttribute).FullName);
+                        var upstreamAttr = assembly.GetCustomAttribute<PluginManifestAttribute>();
 
-                        if (attrData != null)
+                        if (upstreamAttr != null)
                         {
-                            upstreamName = attrData.NamedArguments
-                                .FirstOrDefault(na => na.MemberName == nameof(PluginManifestAttribute.Name))
-                                .TypedValue.Value?.ToString();
+                            var manifest = upstreamAttr.ToManifest();
+                            upstreamName = manifest.Name;
+                            upstreamVersion = manifest.Version;
+                        }
 
-                            upstreamVersion = attrData.NamedArguments
-                                .FirstOrDefault(na => na.MemberName == nameof(PluginManifestAttribute.Version))
-                                .TypedValue.Value?.ToString();
+                        if (string.IsNullOrEmpty(upstreamName) || string.IsNullOrEmpty(upstreamVersion))
+                        {
+                            Console.WriteLine(
+                                $"[Warning] Could not extract PluginManifestAttribute from {localManifest.Name}");
+                            continue;
+                        }
+
+                        Console.WriteLine("Processing Upstream Plugin: {0}", upstreamName);
+                        var localVer = Version.Parse(localManifest.Version.TrimStart('v', 'V'));
+                        var upstreamVer = Version.Parse(upstreamVersion.TrimStart('v', 'V'));
+
+                        if (localVer < upstreamVer)
+                        {
+                            Console.WriteLine(
+                                $"[Update Found] {localManifest.Name}: {localManifest.Version} -> {upstreamVersion}");
+
+                            var updatedJson = JsonSerializer.Serialize(upstreamVersion, options);
+                            await File.WriteAllTextAsync(manifestPath, updatedJson);
+                            hasUpdates = true;
                         }
                     }
                     finally
@@ -129,26 +145,6 @@ public static class Sync
                         loadContext.Resolving -= resolver;
                         loadContext.Unload();
                     }
-                }
-
-                if (string.IsNullOrEmpty(upstreamName) || string.IsNullOrEmpty(upstreamVersion))
-                {
-                    Console.WriteLine($"[Warning] Could not extract PluginManifestAttribute from {localManifest.Name}");
-                    continue;
-                }
-
-                Console.WriteLine("Processing Upstream Plugin: {0}", upstreamName);
-                var localVer = Version.Parse(localManifest.Version.TrimStart('v', 'V'));
-                var upstreamVer = Version.Parse(upstreamVersion.TrimStart('v', 'V'));
-
-                if (localVer < upstreamVer)
-                {
-                    Console.WriteLine(
-                        $"[Update Found] {localManifest.Name}: {localManifest.Version} -> {upstreamVersion}");
-
-                    var updatedJson = JsonSerializer.Serialize(upstreamVersion, options);
-                    await File.WriteAllTextAsync(manifestPath, updatedJson);
-                    hasUpdates = true;
                 }
             }
             catch (Exception ex)
