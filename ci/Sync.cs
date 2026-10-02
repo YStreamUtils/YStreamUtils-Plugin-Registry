@@ -1,9 +1,9 @@
-﻿using System.IO.Compression;
-using System.Reflection;
+﻿using System.Reflection;
 using System.Runtime.Loader;
 using System.Text.Json;
 using Octokit;
 using YStreamUtils.SDK.Plugin;
+using System.IO.Compression;
 
 namespace ci;
 
@@ -53,34 +53,54 @@ public static class Sync
                 Console.WriteLine("Processing Plugin Manifest from ZIP: {0}", localManifest.Name);
 
                 var zipBytes = await HttpClient.GetByteArrayAsync(zipAsset.BrowserDownloadUrl);
-                using var zipStream = new MemoryStream(zipBytes);
-                await using var archive = new ZipArchive(zipStream, ZipArchiveMode.Read);
+                
+                PluginManifestAttribute? upstreamAttr = null;
 
-                var expectedDllName = $"{localManifest.Name}.dll";
-                var dllEntry = archive.Entries.FirstOrDefault(e => string.Equals(e.Name, expectedDllName, StringComparison.OrdinalIgnoreCase));
-
-                if (dllEntry == null)
+                using (var zipStream = new MemoryStream(zipBytes))
+                await using (var archive = new ZipArchive(zipStream, ZipArchiveMode.Read))
                 {
-                    Console.WriteLine($"[Warning] Found zip asset, but it does not contain {expectedDllName}");
-                    continue;
-                }
+                    var expectedDllName = $"{localManifest.Name}.dll";
+                    var dllEntry = archive.Entries.FirstOrDefault(e => string.Equals(e.Name, expectedDllName, StringComparison.OrdinalIgnoreCase));
 
-                PluginManifestAttribute? upstreamAttr;
-                await using (var dllStream = await dllEntry.OpenAsync())
-                {
-                    using var seekableDllStream = new MemoryStream();
-                    await dllStream.CopyToAsync(seekableDllStream);
-                    seekableDllStream.Position = 0;
-
-                    var loadContext = new AssemblyLoadContext("SyncValidationContext", isCollectible: true);
-                    try
+                    if (dllEntry == null)
                     {
-                        var assembly = loadContext.LoadFromStream(seekableDllStream);
-                        upstreamAttr = assembly.GetCustomAttribute<PluginManifestAttribute>();
+                        Console.WriteLine($"[Warning] Found zip asset, but it does not contain {expectedDllName}");
+                        continue;
                     }
-                    finally
+
+                    await using (var dllStream = await dllEntry.OpenAsync())
+                    using (var seekableDllStream = new MemoryStream())
                     {
-                        loadContext.Unload();
+                        await dllStream.CopyToAsync(seekableDllStream);
+                        seekableDllStream.Position = 0;
+
+                        var loadContext = new AssemblyLoadContext("SyncValidationContext", isCollectible: true);
+                        
+                        Func<AssemblyLoadContext, AssemblyName, Assembly?> resolver = (context, assemblyName) =>
+                        {
+                            var targetDllName = $"{assemblyName.Name}.dll";
+                            var match = archive.Entries.FirstOrDefault(e => string.Equals(e.Name, targetDllName, StringComparison.OrdinalIgnoreCase));
+
+                            if (match == null) return null;
+                            using var matchStream = match.Open();
+                            using var seekableMatchStream = new MemoryStream();
+                            matchStream.CopyTo(seekableMatchStream);
+                            seekableMatchStream.Position = 0;
+                            return context.LoadFromStream(seekableMatchStream);
+                        };
+
+                        loadContext.Resolving += resolver;
+
+                        try
+                        {
+                            var assembly = loadContext.LoadFromStream(seekableDllStream);
+                            upstreamAttr = assembly.GetCustomAttribute<PluginManifestAttribute>();
+                        }
+                        finally
+                        {
+                            loadContext.Resolving -= resolver;
+                            loadContext.Unload();
+                        }
                     }
                 }
                 
