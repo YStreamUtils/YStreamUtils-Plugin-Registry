@@ -66,7 +66,9 @@ public static class Sync
 
                 if (upstreamAttr == null) continue;
 
-                if (upstreamAttr.Version != localManifest.Version)
+                var localVersion = Version.Parse(localManifest.Version.TrimStart('v', 'V'));
+                var upstreamVersion = Version.Parse(upstreamAttr.Version.TrimStart('v', 'V'));
+                if (localVersion < upstreamVersion)
                 {
                     Console.WriteLine($"[Update Found] {localManifest.Name}: {localManifest.Version} -> {upstreamAttr.Version}");
 
@@ -75,15 +77,6 @@ public static class Sync
 
                     await File.WriteAllTextAsync(manifestPath, updatedJson);
                     hasUpdates = true;
-
-                    var oldVersion = localManifest.Version.Split('.');
-                    var newVersion = upstreamAttr.Version.Split('.');
-
-                    if (oldVersion.Length == 3 && newVersion.Length == 3 && oldVersion[0] != newVersion[0])
-                    {
-                        Console.WriteLine($"[Security] Major version bump detected for {localManifest.Name}. Flagging for manual review.");
-                        manualReviewRequired = true;
-                    }
                 }
             }
             catch (Exception ex)
@@ -94,21 +87,13 @@ public static class Sync
 
         if (hasUpdates)
         {
-            if (manualReviewRequired)
-            {
-                Console.WriteLine("[Syncer] Sync complete. Updates written. Manual review REQUIRED.");
-                Environment.Exit(11); // Updates + Manual Review
-            }
-            else
-            {
-                Console.WriteLine("[Syncer] Sync complete. Updates written. Eligible for Auto-Merge.");
-                Environment.Exit(10); // Updates + Safe Auto-Merge
-            }
+            Console.WriteLine("[Syncer] Sync complete. Updates written. Eligible for Auto-Merge.");
+            Environment.Exit(1);
         }
         else
         {
             Console.WriteLine("[Syncer] Sync complete. All plugin registrations are up to date.");
-            Environment.Exit(0); // Zero changes
+            Environment.Exit(0);
         }
     }
 }

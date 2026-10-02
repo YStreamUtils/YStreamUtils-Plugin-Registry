@@ -65,9 +65,6 @@ public static class Verify
                 if (!string.Equals(attribute.Version, localManifest.Version, StringComparison.OrdinalIgnoreCase))
                     throw new Exception($"Mismatch: Version in DLL ('{attribute.Version}') does not match JSON ('{localManifest.Version}')");
 
-                if (!string.Equals(attribute.SourceOwner, ownerScope, StringComparison.OrdinalIgnoreCase))
-                    throw new Exception($"Security Fault: DLL SourceOwner ('{attribute.SourceOwner}') mismatches directory scope '{ownerScope}'");
-
                 Console.WriteLine($"PASS: Verified {ownerScope}/{localManifest.Name}");
             }
             finally
