@@ -159,10 +159,15 @@ public static class Sync
             }
         }
 
+        var githubOutput = Environment.GetEnvironmentVariable("GITHUB_OUTPUT");
+        if (!string.IsNullOrEmpty(githubOutput))
+        {
+            await File.AppendAllTextAsync(githubOutput, $"has_updates={hasUpdates.ToString().ToLowerInvariant()}\n");
+        }
+        
         if (hasUpdates)
         {
             Console.WriteLine("[Syncer] Sync complete. Updates written. Eligible for Auto-Merge.");
-            Environment.Exit(1);
         }
         else
         {

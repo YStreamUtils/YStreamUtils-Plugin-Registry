@@ -23,25 +23,13 @@ jobs:
 
       - name: Execute Sync Engine
         id: sync_run
-        continue-on-error: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           dotnet run --project ci/ci.csproj -- --sync
-          
-          # Intercept C# application exit codes natively
-          STATUS=$?
-          if [ $STATUS -eq 0 ]; then
-            echo "UPDATES_FOUND=false" >> $GITHUB_ENV
-          elif [ $STATUS -eq 1 ]; then
-            echo "UPDATES_FOUND=true" >> $GITHUB_ENV
-          else
-            echo "Error: Sync engine encountered an unhandled crash or exception."
-            exit $STATUS
-          fi
 
       - name: Create Tracking Pull Request
-        if: env.UPDATES_FOUND == 'true'
+        if: steps.sync_run.outputs.has_updates == 'true'
         id: cpr
         uses: peter-evans/create-pull-request@v6
         with:
@@ -52,11 +40,10 @@ jobs:
           body: "Automated .NET background sync completed successfully. Forwarding changes downstream..."
 
       - name: Process Pull Request Approval Status
-        if: env.UPDATES_FOUND == 'true' && steps.cpr.outputs.pull-request-number != ''
+        if: steps.sync_run.outputs.has_updates == 'true' && steps.cpr.outputs.pull-request-number != ''
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           PR_NUMBER="${{ steps.cpr.outputs.pull-request-number }}"
-          
           echo "Safe update detected. Auto-approving PR #$PR_NUMBER..."
           gh pr review "$PR_NUMBER" --approve
