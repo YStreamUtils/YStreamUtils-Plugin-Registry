@@ -14,7 +14,7 @@ public static class Sync
     public static async Task ExecuteAsync(GitHubClient client)
     {
         Console.WriteLine("[Syncer] Initiating automated upstream sync scan...");
-        
+
         var projectRoot = Directory.GetCurrentDirectory();
         var pluginsPath = Path.Combine(projectRoot, "plugins");
 
@@ -25,13 +25,12 @@ public static class Sync
         }
 
         var manifestPaths = Directory.GetFiles(pluginsPath, "manifest.json", SearchOption.AllDirectories);
-
         var hasUpdates = false;
 
-        var options = new JsonSerializerOptions 
-        { 
-            PropertyNameCaseInsensitive = true, 
-            WriteIndented = true 
+        var options = new JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true,
+            WriteIndented = true
         };
 
         foreach (var manifestPath in manifestPaths)
@@ -44,23 +43,28 @@ public static class Sync
             try
             {
                 Console.WriteLine("Searching for updates for plugin: {0}", localManifest.Name);
-                var latestRelease = await client.Repository.Release.GetLatest(localManifest.Source.Owner, localManifest.Source.Repository);
-                
+                var latestRelease =
+                    await client.Repository.Release.GetLatest(localManifest.Source.Owner,
+                        localManifest.Source.Repository);
+
                 var expectedZipName = $"{localManifest.Name}.zip";
-                var zipAsset = latestRelease.Assets.FirstOrDefault(a => string.Equals(a.Name, expectedZipName, StringComparison.OrdinalIgnoreCase));
+                var zipAsset = latestRelease.Assets.FirstOrDefault(a =>
+                    string.Equals(a.Name, expectedZipName, StringComparison.OrdinalIgnoreCase));
 
                 if (zipAsset == null) continue;
                 Console.WriteLine("Processing Plugin Manifest from ZIP: {0}", localManifest.Name);
 
                 var zipBytes = await HttpClient.GetByteArrayAsync(zipAsset.BrowserDownloadUrl);
-                
-                PluginManifestAttribute? upstreamAttr = null;
+
+                string? upstreamName = null;
+                string? upstreamVersion = null;
 
                 using (var zipStream = new MemoryStream(zipBytes))
                 await using (var archive = new ZipArchive(zipStream, ZipArchiveMode.Read))
                 {
                     var expectedDllName = $"{localManifest.Name}.dll";
-                    var dllEntry = archive.Entries.FirstOrDefault(e => string.Equals(e.Name, expectedDllName, StringComparison.OrdinalIgnoreCase));
+                    var dllEntry = archive.Entries.FirstOrDefault(e =>
+                        string.Equals(e.Name, expectedDllName, StringComparison.OrdinalIgnoreCase));
 
                     if (dllEntry == null)
                     {
@@ -68,56 +72,81 @@ public static class Sync
                         continue;
                     }
 
-                    await using (var dllStream = await dllEntry.OpenAsync())
-                    using (var seekableDllStream = new MemoryStream())
+                    var assemblyByteMap = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
+                    foreach (var entry in archive.Entries)
                     {
-                        await dllStream.CopyToAsync(seekableDllStream);
-                        seekableDllStream.Position = 0;
+                        if (!entry.Name.EndsWith(".dll", StringComparison.OrdinalIgnoreCase)) continue;
+                        await using var entryStream = await entry.OpenAsync();
+                        using var ms = new MemoryStream();
+                        await entryStream.CopyToAsync(ms);
+                        assemblyByteMap[entry.Name] = ms.ToArray();
+                    }
 
-                        var loadContext = new AssemblyLoadContext("SyncValidationContext", isCollectible: true);
-                        
-                        Func<AssemblyLoadContext, AssemblyName, Assembly?> resolver = (context, assemblyName) =>
-                        {
-                            var targetDllName = $"{assemblyName.Name}.dll";
-                            var match = archive.Entries.FirstOrDefault(e => string.Equals(e.Name, targetDllName, StringComparison.OrdinalIgnoreCase));
+                    if (!assemblyByteMap.TryGetValue(expectedDllName, out var targetDllBytes)) continue;
+                    using var seekableDllStream = new MemoryStream(targetDllBytes);
 
-                            if (match == null) return null;
-                            using var matchStream = match.Open();
-                            using var seekableMatchStream = new MemoryStream();
-                            matchStream.CopyTo(seekableMatchStream);
-                            seekableMatchStream.Position = 0;
-                            return context.LoadFromStream(seekableMatchStream);
-                        };
+                    var loadContext = new AssemblyLoadContext("SyncValidationContext", isCollectible: true);
 
-                        loadContext.Resolving += resolver;
-
+                    Func<AssemblyLoadContext, AssemblyName, Assembly?> resolver = (context, assemblyName) =>
+                    {
                         try
                         {
-                            var assembly = loadContext.LoadFromStream(seekableDllStream);
-                            upstreamAttr = assembly.GetCustomAttribute<PluginManifestAttribute>();
+                            return AssemblyLoadContext.Default.LoadFromAssemblyName(assemblyName);
                         }
-                        finally
+                        catch
                         {
-                            loadContext.Resolving -= resolver;
-                            loadContext.Unload();
+                            // ignored
+                        }
+
+                        var targetDllKey = $"{assemblyName.Name}.dll";
+                        return assemblyByteMap.TryGetValue(targetDllKey, out var dependencyBytes) 
+                            ? context.LoadFromStream(new MemoryStream(dependencyBytes)) : null;
+                    };
+
+                    loadContext.Resolving += resolver;
+
+                    try
+                    {
+                        var assembly = loadContext.LoadFromStream(seekableDllStream);
+
+                        var attrData = assembly.GetCustomAttributesData()
+                            .FirstOrDefault(a => a.AttributeType.Name == nameof(PluginManifestAttribute) ||
+                                                 a.AttributeType.FullName == typeof(PluginManifestAttribute).FullName);
+
+                        if (attrData != null)
+                        {
+                            upstreamName = attrData.NamedArguments
+                                .FirstOrDefault(na => na.MemberName == nameof(PluginManifestAttribute.Name))
+                                .TypedValue.Value?.ToString();
+
+                            upstreamVersion = attrData.NamedArguments
+                                .FirstOrDefault(na => na.MemberName == nameof(PluginManifestAttribute.Version))
+                                .TypedValue.Value?.ToString();
                         }
                     }
+                    finally
+                    {
+                        loadContext.Resolving -= resolver;
+                        loadContext.Unload();
+                    }
                 }
-                
-                Console.WriteLine($"[Syncer] Plugin Manifest: {JsonSerializer.Serialize(upstreamAttr, options)}");
 
-                if (upstreamAttr == null) continue;
-
-                Console.WriteLine("Processing Upstream Plugin: {0}", upstreamAttr.Name);
-                var localVersion = Version.Parse(localManifest.Version.TrimStart('v', 'V'));
-                var upstreamVersion = Version.Parse(upstreamAttr.Version.TrimStart('v', 'V'));
-                if (localVersion < upstreamVersion)
+                if (string.IsNullOrEmpty(upstreamName) || string.IsNullOrEmpty(upstreamVersion))
                 {
-                    Console.WriteLine($"[Update Found] {localManifest.Name}: {localManifest.Version} -> {upstreamAttr.Version}");
+                    Console.WriteLine($"[Warning] Could not extract PluginManifestAttribute from {localManifest.Name}");
+                    continue;
+                }
 
-                    var updatedManifest = upstreamAttr.ToManifest();
-                    var updatedJson = JsonSerializer.Serialize(updatedManifest, options);
+                Console.WriteLine("Processing Upstream Plugin: {0}", upstreamName);
+                var localVer = Version.Parse(localManifest.Version.TrimStart('v', 'V'));
+                var upstreamVer = Version.Parse(upstreamVersion.TrimStart('v', 'V'));
 
+                if (localVer < upstreamVer)
+                {
+                    Console.WriteLine(
+                        $"[Update Found] {localManifest.Name}: {localManifest.Version} -> {upstreamVersion}");
+
+                    var updatedJson = JsonSerializer.Serialize(upstreamVersion, options);
                     await File.WriteAllTextAsync(manifestPath, updatedJson);
                     hasUpdates = true;
                 }
