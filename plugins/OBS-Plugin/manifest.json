@@ -1,14 +1,17 @@
-﻿{
-  "$schema": "https://ystreamutils.github.io/YStreamUtils-Plugin-Registry/schema.json",
+{
   "name": "OBSPlugin",
-  "version": "v1.0.0",
+  "version": "v1.0.13",
+  "permissions": [
+    "network"
+  ],
+  "authors": [
+    "ysnt-yes"
+  ],
+  "source": {
+    "repository": "OBS-Plugin",
+    "owner": "YStreamUtils"
+  },
   "documentation": {
     "description": "The official YStreamUtils OBS Integrations"
-  },
-  "source": {
-    "owner": "YStreamUtils",
-    "repository": "OBS-Plugin"
-  },
-  "permissions": ["network"],
-  "authors": ["ysnt-yes"]
+  }
 }
