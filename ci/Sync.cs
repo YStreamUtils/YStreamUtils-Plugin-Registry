@@ -26,7 +26,6 @@ public static class Sync
         var manifestPaths = Directory.GetFiles(pluginsPath, "manifest.json", SearchOption.AllDirectories);
 
         var hasUpdates = false;
-        var manualReviewRequired = false;
 
         var options = new JsonSerializerOptions 
         { 
@@ -43,11 +42,13 @@ public static class Sync
 
             try
             {
+                Console.WriteLine("Searching for updates for plugin: {0}", localManifest.Name);
                 var latestRelease = await client.Repository.Release.GetLatest(localManifest.Source.Owner, localManifest.Source.Repository);
                 var expectedDllName = $"{localManifest.Name}.dll";
                 var dllAsset = latestRelease.Assets.FirstOrDefault(a => string.Equals(a.Name, expectedDllName, StringComparison.OrdinalIgnoreCase));
 
                 if (dllAsset == null) continue;
+                Console.WriteLine("Processing Plugin Manifest: {0}", localManifest.Name);
 
                 var dllBytes = await HttpClient.GetByteArrayAsync(dllAsset.BrowserDownloadUrl);
                 using var stream = new MemoryStream(dllBytes);
@@ -66,6 +67,7 @@ public static class Sync
 
                 if (upstreamAttr == null) continue;
 
+                Console.WriteLine("Processing Upstream Plugin: {0}", upstreamAttr.Name);
                 var localVersion = Version.Parse(localManifest.Version.TrimStart('v', 'V'));
                 var upstreamVersion = Version.Parse(upstreamAttr.Version.TrimStart('v', 'V'));
                 if (localVersion < upstreamVersion)
