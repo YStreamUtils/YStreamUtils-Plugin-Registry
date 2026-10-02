@@ -1,4 +1,5 @@
-﻿using System.Reflection;
+﻿using System.IO.Compression;
+using System.Reflection;
 using System.Runtime.Loader;
 using System.Text.Json;
 using Octokit;
@@ -44,25 +45,43 @@ public static class Sync
             {
                 Console.WriteLine("Searching for updates for plugin: {0}", localManifest.Name);
                 var latestRelease = await client.Repository.Release.GetLatest(localManifest.Source.Owner, localManifest.Source.Repository);
+                
+                var expectedZipName = $"{localManifest.Name}.zip";
+                var zipAsset = latestRelease.Assets.FirstOrDefault(a => string.Equals(a.Name, expectedZipName, StringComparison.OrdinalIgnoreCase));
+
+                if (zipAsset == null) continue;
+                Console.WriteLine("Processing Plugin Manifest from ZIP: {0}", localManifest.Name);
+
+                var zipBytes = await HttpClient.GetByteArrayAsync(zipAsset.BrowserDownloadUrl);
+                using var zipStream = new MemoryStream(zipBytes);
+                await using var archive = new ZipArchive(zipStream, ZipArchiveMode.Read);
+
                 var expectedDllName = $"{localManifest.Name}.dll";
-                var dllAsset = latestRelease.Assets.FirstOrDefault(a => string.Equals(a.Name, expectedDllName, StringComparison.OrdinalIgnoreCase));
+                var dllEntry = archive.Entries.FirstOrDefault(e => string.Equals(e.Name, expectedDllName, StringComparison.OrdinalIgnoreCase));
 
-                if (dllAsset == null) continue;
-                Console.WriteLine("Processing Plugin Manifest: {0}", localManifest.Name);
-
-                var dllBytes = await HttpClient.GetByteArrayAsync(dllAsset.BrowserDownloadUrl);
-                using var stream = new MemoryStream(dllBytes);
-
-                var loadContext = new AssemblyLoadContext("SyncValidationContext", isCollectible: true);
-                PluginManifestAttribute? upstreamAttr;
-                try
+                if (dllEntry == null)
                 {
-                    var assembly = loadContext.LoadFromStream(stream);
-                    upstreamAttr = assembly.GetCustomAttribute<PluginManifestAttribute>();
+                    Console.WriteLine($"[Warning] Found zip asset, but it does not contain {expectedDllName}");
+                    continue;
                 }
-                finally
+
+                PluginManifestAttribute? upstreamAttr;
+                await using (var dllStream = await dllEntry.OpenAsync())
                 {
-                    loadContext.Unload();
+                    using var seekableDllStream = new MemoryStream();
+                    await dllStream.CopyToAsync(seekableDllStream);
+                    seekableDllStream.Position = 0;
+
+                    var loadContext = new AssemblyLoadContext("SyncValidationContext", isCollectible: true);
+                    try
+                    {
+                        var assembly = loadContext.LoadFromStream(seekableDllStream);
+                        upstreamAttr = assembly.GetCustomAttribute<PluginManifestAttribute>();
+                    }
+                    finally
+                    {
+                        loadContext.Unload();
+                    }
                 }
                 
                 Console.WriteLine($"[Syncer] Plugin Manifest: {JsonSerializer.Serialize(upstreamAttr, options)}");
