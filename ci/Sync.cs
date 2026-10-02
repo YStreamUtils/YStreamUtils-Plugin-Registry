@@ -64,6 +64,8 @@ public static class Sync
                 {
                     loadContext.Unload();
                 }
+                
+                Console.WriteLine($"[Syncer] Plugin Manifest: {JsonSerializer.Serialize(upstreamAttr, options)}");
 
                 if (upstreamAttr == null) continue;
 
