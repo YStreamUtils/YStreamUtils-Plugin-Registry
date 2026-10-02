@@ -12,7 +12,7 @@
     <PackageReference Include="JsonSchema.Net.Generation" Version="7.4.0" />
     <PackageReference Include="Octokit" Version="14.0.0" />
     <PackageReference Include="System.Reflection.Metadata" Version="10.0.12" />
-    <PackageReference Include="YStreamUtils.SDK" Version="1.0.0-alpha" />
+    <PackageReference Include="YStreamUtils.SDK" Version="1.0.2-alpha" />
   </ItemGroup>
 
 </Project>
