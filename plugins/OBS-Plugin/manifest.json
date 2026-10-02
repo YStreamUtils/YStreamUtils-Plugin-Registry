@@ -7,7 +7,7 @@
   },
   "source": {
     "owner": "YStreamUtils",
-    "repository": "OBSPlugin"
+    "repository": "OBS-Plugin"
   },
   "permissions": ["network"],
   "authors": ["ysnt-yes"]
