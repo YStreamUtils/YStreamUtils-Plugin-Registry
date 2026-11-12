@@ -1,6 +1,6 @@
 {
   "name": "AI-Plugin",
-  "version": "v1.0.0",
+  "version": "v1.0.5",
   "permissions": [
     "network",
     "AI"
@@ -9,8 +9,8 @@
     "ysnt-yes"
   ],
   "source": {
-    "owner": "YStreamUtils",
-    "repository": "AIPlugin"
+    "repository": "AIPlugin",
+    "owner": "YStreamUtils"
   },
   "documentation": {
     "description": "The official YStreamUtils AI Chat Integration"
