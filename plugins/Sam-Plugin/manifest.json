@@ -1,0 +1,17 @@
+{
+  "name": "Sam-Plugin",
+  "version": "v1.0.0",
+  "permissions": [
+    "audio"
+  ],
+  "authors": [
+    "ysnt-yes"
+  ],
+  "source": {
+    "owner": "YStreamUtils",
+    "repository": "SAM-Plugin"
+  },
+  "documentation": {
+    "description": "SAM Integration, because it's funny"
+  }
+}
