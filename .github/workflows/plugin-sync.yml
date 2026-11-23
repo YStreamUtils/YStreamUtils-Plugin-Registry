@@ -38,12 +38,3 @@ jobs:
           branch: "automated/plugin-manifest-sync"
           title: "chore(sync): update plugin registry manifests"
           body: "Automated .NET background sync completed successfully. Forwarding changes downstream..."
-
-      - name: Process Pull Request Approval Status
-        if: steps.sync_run.outputs.has_updates == 'true' && steps.cpr.outputs.pull-request-number != ''
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          PR_NUMBER="${{ steps.cpr.outputs.pull-request-number }}"
-          echo "Safe update detected. Auto-approving PR #$PR_NUMBER..."
-          gh pr review "$PR_NUMBER" --approve
